@@ -1,0 +1,56 @@
+# $Id: Dockerfile-spark31-worker 421 2021-08-19 02:33:25Z bpahlawa $
+# $Author: bpahlawa $
+# Created: 26-APR-2021
+# Modified by: bpahlawa
+# $Date: 2021-08-19 10:33:25 +0800 (Thu, 19 Aug 2021) $
+# $Revision: 421 $
+#
+# docker run -it --name spark3w -p 8888:8888 -p 4040-4042:4040-4042 -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark spark3w
+# docker run -it --name spark3w --network host -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark spark3w
+# docker run -it --name spark3w -p 8888:8888 -p 4040-4042:4040-4042 -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark -e SPARK_MASTER_HOST="172.17.0.2" spark3w
+# docker run -it --name spark3w -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark -e SPARK_MASTER_HOST="172.17.0.2" spark3w
+# docker run -it --name spark3w -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark -e SPARK_MASTER_HOST="172.17.0.2" -e SPARK_EXECUTOR_MEMORY=3G spark3w
+#
+# Run worker node with sshd only
+# docker run -it --name spark3w -v /opt/spark/hdfsvol:/opt/hdfsvol -v /opt/spark/etc:/opt/spark/etc/spark spark3w
+#
+# add entrypoint.sh in base64 to Dockerfile
+# echo -e " && echo \"$(cat sparkw.env | base64 -w0)\" | base64 -d > /usr/local/bin/sparkw.env && chmod ugo+x /usr/local/bin/sparkw.env \\" >> Dockerfile-spark31-worker
+# echo -e " && echo \"$(cat entrypoint-sparkw.sh | base64 -w0)\" | base64 -d > /usr/local/bin/entrypoint-sparkw.sh && chmod ugo+x /usr/local/bin/entrypoint-sparkw.sh\nENTRYPOINT [\"/usr/local/bin/entrypoint-sparkw.sh\"]" >> Dockerfile-spark31-worker
+
+# docker build --tag spark3w -f ./Dockerfile-spark31-worker /tmp
+
+FROM alpine:edge
+MAINTAINER brpahlawa
+
+ENV SPARK_VER=3.1.2 SPARK_HOME=/opt/spark
+
+RUN apk update && apk upgrade \
+ && apk add --no-cache wget tar gnupg openjdk11-jre bash procps coreutils \
+ && mkdir -p $SPARK_HOME && mkdir -p /var/lib/spark \
+ && wget -O /tmp/KEYS https://downloads.apache.org/spark/KEYS \
+ && gpg --import /tmp/KEYS \
+ && wget -q -O /tmp/spark.tar.gz https://apache.mirror.digitalpacific.com.au/spark/spark-${SPARK_VER}/spark-${SPARK_VER}-bin-hadoop3.2.tgz \
+ && wget -O /tmp/spark.asc https://downloads.apache.org/spark/spark-${SPARK_VER}/spark-${SPARK_VER}-bin-hadoop3.2.tgz.asc \
+ && gpg --verify /tmp/spark.asc /tmp/spark.tar.gz \
+ && tar -xzf /tmp/spark.tar.gz -C $SPARK_HOME  --strip-components 1 \
+ && mv $SPARK_HOME/conf $SPARK_HOME/.conf \
+ && adduser -D -h $SPARK_HOME -s /bin/bash spark \
+ && chown -R spark:spark $SPARK_HOME \
+ && chown -R spark:spark /var/lib/spark \
+ && rm -rf /tmp/* /var/tmp/* \
+ && echo "export SPARK_HOME=/opt/spark" > $SPARK_HOME/.bash_profile \
+ && echo "export SPARK_CONF_DIR=\$SPARK_HOME/etc" >> $SPARK_HOME/.bash_profile \
+ && echo "export JAVA_HOME=/usr/lib/jvm/default-jvm" >> $SPARK_HOME/.bash_profile \
+ && echo "export PYTHONUSERBASE=\$SPARK_HOME" >> $SPARK_HOME/.bash_profile \
+ && echo "export PYTHONUSERSITE=\$SPARK_HOME" >> $SPARK_HOME/.bash_profile \
+ && echo "export PYTHONPATH=\$SPARK_HOME/python:\$SPARK_HOME/python/lib:\$SPARK_HOME/python/lib/py4j-0.10.9-src.zip:\$SPARK_HOME/lib/python3.9/site-packages" >> $SPARK_HOME/.bash_profile \
+ && echo "export PYSPARK_PYTHON=python3" >> $SPARK_HOME/.bash_profile \
+ && echo "export PACKAGES=\"io.delta:delta-core_2.12:1.0.0\"" >> $SPARK_HOME/.bash_profile \
+ && echo "export PYSPARK_SUBMIT_ARGS=\"--packages \${PACKAGES} pyspark-shell\"" >> $SPARK_HOME/.bash_profile \
+ && echo "export PATH=\$SPARK_HOME/bin:\$SPARK_HOME/sbin:\$PATH:\$JAVA_HOME/bin:\$JAVA_HOME/jre/bin" >> $SPARK_HOME/.bash_profile \
+ && chown spark:spark $SPARK_HOME/.bash_profile \
+ && apk add --no-cache python3 openssh \
+ && echo "IyEvYmluL2Jhc2gKIyAkSWQ6IGhhZG9vcC5lbnYgNDEwIDIwMjEtMDctMTIgMDA6MjM6NDRaIGJwYWhsYXdhICQKIyBDcmVhdGVkIDA1LU1BUi0yMDE5CiMgJEF1dGhvcjogYnBhaGxhd2EgJAojICREYXRlOiAyMDIxLTA3LTEyIDA4OjIzOjQ0ICswODAwIChNb24sIDEyIEp1bCAyMDIxKSAkCiMgJFJldmlzaW9uOiA0MTAgJAojCgpleHBvcnQgU1BBUktfTUFTVEVSX0hPU1Q9JHtTUEFSS19NQVNURVJfSE9TVDotIiJ9CmV4cG9ydCBTUEFSS19NQVNURVJfUE9SVD0ke1NQQVJLX01BU1RFUl9QT1JUOi0iNzA3NyJ9CmV4cG9ydCBTUEFSS19DT05GSUdfSU5JVD0ke1NQQVJLX0NPTkZJR19JTklUOi0ibm8ifQpleHBvcnQgU1BBUktfRVhFQ1VUT1JfQ09SRVM9JHtTUEFSS19FWEVDVVRPUl9DT1JFUzotMX0KZXhwb3J0IFNQQVJLX0VYRUNVVE9SX01FTU9SWT0ke1NQQVJLX0VYRUNVVE9SX01FTU9SWTotIjFHIn0KZXhwb3J0IFNQQVJLX0RSSVZFUl9NRU1PUlk9JHtTUEFSS19EUklWRVJfTUVNT1JZOi0iMUcifQpleHBvcnQgU1BBUktfUEFTU1dPUkQ9JHtTUEFSS19QQVNTV09SRDotIkcwZGtuMHdzRzBka24wd3MifQpleHBvcnQgU1BBUktfUlVOX1NTSEQ9JHtTUEFSS19SVU5fU1NIRDotInllcyJ9Cg==" | base64 -d > /usr/local/bin/sparkw.env && chmod ugo+x /usr/local/bin/sparkw.env \
+ && echo "IyEvYmluL2Jhc2gKIyAkSWQ6IGVudHJ5cG9pbnQtc3Bhcmsuc2ggNDEwIDIwMjEtMDctMTIgMDA6MjM6NDRaIGJwYWhsYXdhICQKIyBDcmVhdGVkIDA1LU1BUi0yMDE5CiMgJEF1dGhvcjogYnBhaGxhd2EgJAojICREYXRlOiAyMDIxLTA3LTEyIDA4OjIzOjQ0ICswODAwIChNb24sIDEyIEp1bCAyMDIxKSAkCiMgJFJldmlzaW9uOiA0MTAgJAojfn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fn5+fgoKc291cmNlIHNwYXJrdy5lbnYKCnBhc3N3ZCBzcGFyayA8PCEKJFNQQVJLX1BBU1NXT1JECiRTUEFSS19QQVNTV09SRAohCgpbWyAtZiAkSE9NRS8uc3NoL2tub3duX2hvc3RzIF1dICYmIHJtIC1mICRIT01FLy5zc2gva25vd25faG9zdHMKW1sgISAtZCAvcnVuL3NzaGQgXV0gJiYgbWtkaXIgLXAgL3J1bi9zc2hkCgpTU0hLRVlHRU49JCh3aGljaCBzc2gta2V5Z2VuKQpbWyAkPyAtbmUgMCBdXSAmJiBlY2hvICJPcGVuc3NoIGlzIG5vdCBpbnN0YWxsZWQhIS4uIHBsZWFzZSBpbnN0YWxsIGl0Li4uIiAmJiBleGl0IDEKJFNTSEtFWUdFTiAtQQpTU0hEPSQod2hpY2ggc3NoZCkKW1sgJD8gLW5lIDAgXV0gJiYgZWNobyAiVW5hYmxlIHRvIGZpbmQgc3NoZCBjb21tYW5kLi4uIiAmJiBleGl0IDEKCmlmIFsgJChwcyAtZWYgfCBncmVwICJzc2hkICIgfCBncmVwIC12IGdyZXAgfCB3YyAtbCkgLWVxIDAgXQp0aGVuCiAgICRTU0hECiAgIFtbICQ/IC1uZSAwIF1dICYmIGVjaG8gIkZhaWxlZCB0byBzdGFydCBzc2ggZGFlbW9uISEiICYmIGV4aXQgMQpmaQoKU1BBUktfSE9NRT0kKHN1IC0gc3BhcmsgLWMgImVjaG8gXCRTUEFSS19IT01FIikKW1sgIiRTUEFSS19IT01FIiA9ICIiIF1dICYmIFNQQVJLX0hPTUU9Ii9vcHQvc3BhcmsiCgplY2hvICJHZW5lcmF0aW5nIGxvY2FsIHB1YmxpYyBrZXkuLi4uIgpzdSAtIHNwYXJrIC1jICIKW1sgLWYgXCRIT01FLy5zc2gva25vd25faG9zdHMgXV0gJiYgcm0gLWYgXCRIT01FLy5zc2gva25vd25faG9zdHMKW1sgISAtZiBcJEhPTUUvLnNzaC9pZF9yc2EucHViIF1dICYmIHNzaC1rZXlnZW4gLXQgcnNhIC1OIFwiXCIgLWYgXCRIT01FLy5zc2gvaWRfcnNhCgpjcCBcJEhPTUUvLnNzaC9pZF9yc2EucHViIFwkSE9NRS8uc3NoL2F1dGhvcml6ZWRfa2V5cwpjaG1vZCBnby1yd3ggXCRIT01FLy5zc2gvYXV0aG9yaXplZF9rZXlzCgpjZCAkU1BBUktfSE9NRQplY2hvIFwiQ2hlY2tpbmcgc3NoIGNvbm5lY3Rpb24gbG9vcGJhY2suLi4uLlwiCnNzaCAtbyBTdHJpY3RIb3N0S2V5Q0hlY2tpbmc9bm8gXCQoaG9zdG5hbWUgLWkpIFwiaG9zdG5hbWVcIgpbWyBcJD8gLW5lIDAgXV0gJiYgZWNobyBcIlVuYWJsZSB0byBwZXJmb3JtIGxvb3BiYWNrIGNvbm5lY3Rpb24uLi5cIiAmJiBleGl0IDEKCmlmIFsgXCIkU1BBUktfTUFTVEVSX0hPU1RcIiAhPSBcIlwiIF0KdGhlbgogICBlY2hvIFwiUmVnaXN0ZXJpbmcgd29ya2VyIG5vZGUgJChob3N0bmFtZSkgb24gbWFzdGVyIG5vZGUgJFNQQVJLX01BU1RFUl9IT1NUOiRTUEFSS19NQVNURVJfUE9SVFwiIAogICBleHBvcnQgU1BBUktfTk9fREFFTU9OSVpFPSIxIgogICAkU1BBUktfSE9NRS9zYmluL3N0YXJ0LXdvcmtlci5zaCBzcGFyazovLyR7U1BBUktfTUFTVEVSX0hPU1R9OiR7U1BBUktfTUFTVEVSX1BPUlR9IC1jICRTUEFSS19FWEVDVVRPUl9DT1JFUyAtbSAkU1BBUktfRVhFQ1VUT1JfTUVNT1JZCmVsc2UKICBlY2hvIFwiUGxlYXNlIHNwZWNpZnkgbWFzdGVyIG5vZGUgISEsIHVzZSBlbnZpcm9ubWVudCB2YXJpYWJsZSBTUEFSS19NQVNURVJfSE9TVC4uLlwiCmZpCiIKCmtpbGxhbGwgc3NoZAppZiBbICIkU1BBUktfUlVOX1NTSEQiID0gInllcyIgXQp0aGVuCiAgZWNobyAiV29ya2VyIG5vZGUgaXMgb25seSBydW5uaW5nIHNzaCBkYWVtb24uLiwgcnVuIHNwYXJrIHdvcmtlciBzZXJ2aWNlIG1hbnVhbGx5ISEiCiAgJFNTSEQgLUQKZWxzZQogIGVjaG8gIkV4aXRpbmcgZnJvbSB3b3JrZXIgbm9kZSBvciBjb250YWluZXIuLi4iCmZpCg==" | base64 -d > /usr/local/bin/entrypoint-sparkw.sh && chmod ugo+x /usr/local/bin/entrypoint-sparkw.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint-sparkw.sh"]
