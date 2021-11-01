@@ -103,4 +103,31 @@ insert into bla values (1)
 %%sql
 select * from bla;
 
+### Writing delta table to hadoop
+
+<pre>
+x = spark.read.format("delta").load("hdfs://192.168.0.158:9000/")
+x.show()
+#delete delta table
+from delta.tables import *
+from pyspark.sql.functions import *
+
+deltaTable = DeltaTable.forPath(spark, "hdfs://192.168.0.158:9000/bram")
+
+deltaTable.delete()  
+
+</pre>
+
+### Loading SQL extension
+<pre>
+%load_ext sql
+</pre>
+
+
+### Connect to MySQL DB
+
+<pre>
+%sql  mysql+pymysql://admin:password@192.168.0.178/mydb
+</pre>
+
 
