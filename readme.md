@@ -2,6 +2,8 @@
 
 Spark 3.1 either single node or Cluster with Jupyter Lab and Notebook classic
 
+The codes can be found here: https://github.com/bramyeni/bramscripts/tree/main/microsoft/spark31
+
 ## Assumptions
 
 Master         : 192.168.0.158
